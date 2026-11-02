@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Book
 from .serializers import BookSerializer
+from django.shortcuts import get_object_or_404
 
 @api_view(['GET', 'POST'])
 def book_list(request):
@@ -27,3 +28,11 @@ def book_list(request):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+@api_view(['GET'])
+def book_list_detail(request, pk):
+    if request.method == 'GET':
+        book = get_object_or_404(Book, id=pk)
+        serializer = BookSerializer(book)
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
