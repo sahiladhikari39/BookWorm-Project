@@ -31,7 +31,7 @@ def book_list(request):
         )
 
 
-@api_view(['GET', 'PUT', 'PATCH'])
+@api_view(['GET', 'PUT', 'PATCH','DELETE'])
 def book_list_detail(request, pk):
 
     book = get_object_or_404(Book, id=pk)
@@ -73,3 +73,7 @@ def book_list_detail(request, pk):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    elif request.method == 'DELETE':
+        book.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
