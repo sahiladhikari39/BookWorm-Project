@@ -6,6 +6,7 @@ from .models import Book
 from .serializers import BookSerializer
 from django.shortcuts import get_object_or_404
 
+
 @api_view(['GET', 'POST'])
 def book_list(request):
 
@@ -29,10 +30,46 @@ def book_list(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-@api_view(['GET'])
+
+@api_view(['GET', 'PUT', 'PATCH'])
 def book_list_detail(request, pk):
+
+    book = get_object_or_404(Book, id=pk)
+
     if request.method == 'GET':
-        book = get_object_or_404(Book, id=pk)
         serializer = BookSerializer(book)
         return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        serializer = BookSerializer(book, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    elif request.method == 'PATCH':
+        serializer = BookSerializer(
+            book,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
