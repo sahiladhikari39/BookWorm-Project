@@ -10,11 +10,15 @@ import Status from './components/Status'
 
 function App() {
 
-  function getBooks(){
-    fetch("http://127.0.0.1:8000/books/list/")
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.log(error));
+  async function getBooks(){
+    try{
+      const response = await fetch("http://127.0.0.1:8000/books/list/")
+      const data = await response.json();
+      console.log(data);
+    }
+    catch(error){
+      console.log("Something went wrong", error);
+    }
   }
 
   return (
