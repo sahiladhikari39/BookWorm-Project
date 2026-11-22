@@ -1,37 +1,41 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import "./App.css";
 
-import BookCard from './components/BookCard'
-import Counter from './components/Counter'
-import Status from './components/Status'
+import BookCard from "./components/BookCard";
+import Counter from "./components/Counter";
+import Status from "./components/Status";
 
 function App() {
+  const [books, setBooks] = useState([]);
 
-  async function getBooks(){
-    try{
-      const response = await fetch("http://127.0.0.1:8000/books/list/")
+  async function getBooks() {
+    try {
+      const response = await fetch("http://127.0.0.1:8000/books/list/");
       const data = await response.json();
-      console.log(data);
-    }
-    catch(error){
+      setBooks(data);
+    } catch (error) {
       console.log("Something went wrong", error);
     }
   }
 
+  useEffect(() => {
+    getBooks();
+  }, []);
+
   return (
     <div>
-      {/* <BookCard title="Atomic Habits" author="James Clear" published_year={2018} />
-      <BookCard title="Deep Work" author="Cal Newport" published_year={2022} />
-      <Counter />
-      <Status /> */}
+      <h1>Total Books: {books.length}</h1>
 
-      <button onClick={getBooks}>Get Books</button>
+      {books.map(book => (
+        <BookCard
+          key={book.id}
+          title={book.title}
+          author={book.author}
+          published_year={book.published_year}
+        />
+      ))}
     </div>
-
   );
 }
 
-export default App
+export default App;
