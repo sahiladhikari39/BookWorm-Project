@@ -10,12 +10,21 @@ import Status from './components/Status'
 
 function App() {
 
+  function getBooks(){
+    fetch("http://127.0.0.1:8000/books/list/")
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.log(error));
+  }
+
   return (
     <div>
-      <BookCard title="Atomic Habits" author="James Clear" published_year={2018} />
+      {/* <BookCard title="Atomic Habits" author="James Clear" published_year={2018} />
       <BookCard title="Deep Work" author="Cal Newport" published_year={2022} />
       <Counter />
-      <Status />
+      <Status /> */}
+
+      <button onClick={getBooks}>Get Books</button>
     </div>
 
   );
