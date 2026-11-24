@@ -1,12 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-
 import BookCard from "./components/BookCard";
 
+const API_URL = "http://127.0.0.1:8000/books/list/";
+
 function App() {
-  const [loading, setLoading] = useState(true);
   const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+
+  const [editingBookId, setEditingBookId] = useState(null);
+
   const [formData, setFormData] = useState({
     title: "",
     author: "",
@@ -14,18 +22,20 @@ function App() {
     published_year: "",
     reading_status: "WANT_TO_READ",
   });
-  const [editingBookId, setEditingBookId] = useState(null);
 
+  // Fetch all books
   async function getBooks() {
     try {
-      const response = await fetch("http://127.0.0.1:8000/books/list/");
+      const response = await fetch(API_URL);
+
       if (!response.ok) {
-        throw new Error("Failed to fetch books");
+        throw new Error("Failed to fetch books.");
       }
+
       const data = await response.json();
       setBooks(data);
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -35,22 +45,44 @@ function App() {
     getBooks();
   }, []);
 
-  if (loading) {
-    return <h2>loading books ......</h2>;
+  // Handle form inputs
+  function handleChange(e) {
+    const { name, value } = e.target;
+
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
   }
 
-  if (error) {
-    return <h2>{error}</h2>;
+  // Reset form
+  function resetForm() {
+    setFormData({
+      title: "",
+      author: "",
+      description: "",
+      published_year: "",
+      reading_status: "WANT_TO_READ",
+    });
+
+    setEditingBookId(null);
   }
 
+  // Add or update a book
   async function handleSubmit(e) {
     e.preventDefault();
+    setActionError("");
+
+    const payload = {
+      ...formData,
+      published_year: Number(formData.published_year),
+    };
 
     const isEditing = editingBookId !== null;
 
     const url = isEditing
-      ? `http://127.0.0.1:8000/books/list/${editingBookId}/`
-      : "http://127.0.0.1:8000/books/list/";
+      ? `${API_URL}${editingBookId}/`
+      : API_URL;
 
     try {
       const response = await fetch(url, {
@@ -58,167 +90,315 @@ function App() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...formData,
-          published_year: Number(formData.published_year),
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to save book");
-      }
+      const data = await response.json();
 
-      const savedBook = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          Object.values(data).flat().join(" ")
+        );
+      }
 
       if (isEditing) {
         setBooks((prevBooks) =>
           prevBooks.map((book) =>
-            book.id === editingBookId ? savedBook : book,
-          ),
+            book.id === editingBookId ? data : book
+          )
         );
       } else {
-        setBooks((prevBooks) => [...prevBooks, savedBook]);
+        setBooks((prevBooks) => [data, ...prevBooks]);
       }
 
-      setEditingBookId(null);
-
-      setFormData({
-        title: "",
-        author: "",
-        description: "",
-        published_year: "",
-        reading_status: "WANT_TO_READ",
-      });
-    } catch (error) {
-      setError(error.message);
+      resetForm();
+    } catch (err) {
+      setActionError(err.message);
     }
   }
 
+  // Load selected book into form
   function handleEdit(book) {
     setEditingBookId(book.id);
 
     setFormData({
       title: book.title,
       author: book.author,
-      description: book.description,
+      description: book.description || "",
       published_year: book.published_year,
       reading_status: book.reading_status,
     });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
+  // Delete a book
   async function handleDelete(bookId) {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this book?",
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this book?"
     );
 
-    if (!confirmDelete) {
-      return;
-    }
+    if (!confirmed) return;
+
+    setActionError("");
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:8000/books/list/${bookId}/`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await fetch(`${API_URL}${bookId}/`, {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to delete book");
+        throw new Error("Failed to delete book.");
       }
 
-      setBooks((prevBooks) => prevBooks.filter((book) => book.id !== bookId));
-    } catch (error) {
-      setError(error.message);
+      setBooks((prevBooks) =>
+        prevBooks.filter((book) => book.id !== bookId)
+      );
+
+      if (editingBookId === bookId) {
+        resetForm();
+      }
+    } catch (err) {
+      setActionError(err.message);
     }
   }
 
+  // Dashboard statistics
+  const stats = useMemo(() => ({
+    total: books.length,
+    reading: books.filter(
+      (book) => book.reading_status === "READING"
+    ).length,
+    completed: books.filter(
+      (book) => book.reading_status === "COMPLETED"
+    ).length,
+    wantToRead: books.filter(
+      (book) => book.reading_status === "WANT_TO_READ"
+    ).length,
+  }), [books]);
+
+  // Search and filter
+  const filteredBooks = books.filter((book) => {
+    const searchText = search.toLowerCase();
+
+    const matchesSearch =
+      book.title.toLowerCase().includes(searchText) ||
+      book.author.toLowerCase().includes(searchText);
+
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      book.reading_status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
   return (
-    <div>
-      <h1>Total Books: {books.length}</h1>
-
-      {books.map((book) => (
-        <div key={book.id}>
-          <BookCard
-            title={book.title}
-            author={book.author}
-            published_year={book.published_year}
-          />
-
-          <button onClick={() => handleEdit(book)}>Edit</button>
-
-          <button onClick={() => handleDelete(book.id)}>Delete</button>
+    <div className="app">
+      <header className="header">
+        <div className="header-content">
+          <h1>Bookworm<span>.</span></h1>
+          <p>Your personal reading space</p>
         </div>
-      ))}
+      </header>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Book title"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-        />
+      <main className="container">
 
-        <input
-          type="text"
-          placeholder="Author"
-          value={formData.author}
-          onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-          required
-        />
+        {/* Dashboard */}
+        <section className="dashboard">
+          <div className="section-heading">
+            <div>
+              <h2>Your Dashboard</h2>
+              <p>A little progress every day adds up.</p>
+            </div>
+          </div>
 
-        <textarea
-          placeholder="Description"
-          value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
-        />
+          <div className="stats-grid">
+            <div className="stat-card">
+              <span>Total Books</span>
+              <h2>{stats.total}</h2>
+            </div>
 
-        <input
-          type="number"
-          placeholder="Published year"
-          value={formData.published_year}
-          onChange={(e) =>
-            setFormData({ ...formData, published_year: e.target.value })
-          }
-          required
-        />
+            <div className="stat-card">
+              <span>Currently Reading</span>
+              <h2>{stats.reading}</h2>
+            </div>
 
-        <select
-          value={formData.reading_status}
-          onChange={(e) =>
-            setFormData({ ...formData, reading_status: e.target.value })
-          }
-        >
-          <option value="WANT_TO_READ">Want to Read</option>
-          <option value="READING">Reading</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
+            <div className="stat-card">
+              <span>Completed</span>
+              <h2>{stats.completed}</h2>
+            </div>
 
-        <button type="submit">
-          {editingBookId !== null ? "Update Book" : "Add Book"}
-        </button>
+            <div className="stat-card">
+              <span>Want to Read</span>
+              <h2>{stats.wantToRead}</h2>
+            </div>
+          </div>
+        </section>
 
-        {editingBookId !== null && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingBookId(null);
-              setFormData({
-                title: "",
-                author: "",
-                description: "",
-                published_year: "",
-                reading_status: "WANT_TO_READ",
-              });
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
+        {/* Add/Edit Form */}
+        <section className="form-section">
+          <div className="section-heading">
+            <div>
+              <h2>{editingBookId ? "Edit Book" : "Add a New Book"}</h2>
+              <p>
+                {editingBookId
+                  ? "Update your book details."
+                  : "Add another book to your collection."}
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="book-form">
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Book Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Enter book title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Author</label>
+                <input
+                  type="text"
+                  name="author"
+                  placeholder="Enter author name"
+                  value={formData.author}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Published Year</label>
+                <input
+                  type="number"
+                  name="published_year"
+                  placeholder="e.g. 2020"
+                  value={formData.published_year}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Reading Status</label>
+                <select
+                  name="reading_status"
+                  value={formData.reading_status}
+                  onChange={handleChange}
+                >
+                  <option value="WANT_TO_READ">Want to Read</option>
+                  <option value="READING">Currently Reading</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+              </div>
+
+              <div className="form-group full-width">
+                <label>Description</label>
+                <textarea
+                  name="description"
+                  placeholder="Write something about this book..."
+                  value={formData.description}
+                  onChange={handleChange}
+                  rows="3"
+                />
+              </div>
+            </div>
+
+            {actionError && (
+              <p className="error-message">{actionError}</p>
+            )}
+
+            <div className="form-actions">
+              <button type="submit" className="primary-btn">
+                {editingBookId ? "Update Book" : "Add Book"}
+              </button>
+
+              {editingBookId && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={resetForm}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* Books Section */}
+        <section className="books-section">
+          <div className="section-heading">
+            <div>
+              <h2>My Collection</h2>
+              <p>Explore and manage your books.</p>
+            </div>
+
+            <span className="book-count">
+              {filteredBooks.length} books
+            </span>
+          </div>
+
+          <div className="filter-bar">
+            <input
+              type="text"
+              placeholder="Search by title or author..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">All Books</option>
+              <option value="WANT_TO_READ">Want to Read</option>
+              <option value="READING">Currently Reading</option>
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <p className="info-message">Loading your books...</p>
+          ) : error ? (
+            <p className="error-message">{error}</p>
+          ) : filteredBooks.length === 0 ? (
+            <div className="empty-state">
+              <h3>No books found</h3>
+              <p>
+                Try changing your search or add a new book to your collection.
+              </p>
+            </div>
+          ) : (
+            <div className="books-grid">
+              {filteredBooks.map((book) => (
+                <BookCard
+                  key={book.id}
+                  book={book}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+      </main>
+
+      <footer className="footer">
+        <p>Bookworm © 2026 — Made for book lovers.</p>
+      </footer>
     </div>
   );
 }
