@@ -3,6 +3,7 @@ function BookCard(props){
         <div>
             <h2>Title: {props.title}</h2>
             <h2>Author: {props.author}</h2>
+            <h2>Description: {props.description}</h2>
             <h2>Published Year: {props.published_year}</h2>
         </div>
         
